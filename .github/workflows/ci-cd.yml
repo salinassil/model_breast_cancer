@@ -1,0 +1,64 @@
+name: 🚀 CI/CD - MLOps API Deploy
+
+# 1. Definir el EVENTO que dispara el workflow
+on:
+  push:
+    branches: [ "main" ]
+
+# Definir variables globales para el nombre de la imagen y la versión (tag)
+env:
+  IMAGE_NAME: model-api
+  IMAGE_TAG: ${{ github.sha }} # Usa el SHA del commit como versión única
+
+jobs:
+  build_test_and_push:
+    # Ejecutar en el runner de Ubuntu
+    runs-on: ubuntu-latest
+    
+    # 2. Definir los PASOS
+    steps:
+    - name: 📦 Checkout code
+      uses: actions/checkout@v4
+    
+    # --- ETAPA 1: BUILD (Construir la imagen de Docker) ---
+    - name: 🐳 Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        # Usa Secrets para mantener tus credenciales seguras
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: 🏗️ Build Docker Image
+      id: docker_build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false # Solo construir por ahora, no subir
+        tags: ${{ env.IMAGE_NAME }}:latest, ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        
+    # --- ETAPA 2: TEST de Endpoint Básico ---
+    - name: 🚀 Run Container for Testing
+      # Ejecuta el contenedor en segundo plano, mapeando el puerto 5000 a 5000
+      run: docker run -d -p 5001:5001 --name api_test ${{ env.IMAGE_NAME }}:latest
+
+    - name: ⏱️ Wait for API to initialize (5s)
+      run: sleep 5
+      
+    - name: 🧪 Test GET / (Status Check)
+      # Usa '--fail' para que curl devuelva un error si el código de estado no es 200
+      run: curl --fail http://localhost:5001/
+      
+    - name: 🩺 Test POST /predict (Prediction Endpoint)
+      # Prueba enviando datos de prueba válidos para asegurar que el modelo carga
+      run: |
+        curl --fail -X POST http://localhost:5001/predict \
+             -H "Content-Type: application/json" \
+             -d '{"features": [13.54, 14.36, 87.46, 566.3, 0.09779, 0.08129, 0.06664, 0.04781, 0.1885, 0.05766, 0.2699, 0.7885, 2.058, 23.35, 0.005731, 0.01256, 0.02548, 0.01423, 0.03237, 0.002303, 15.11, 19.49, 97.59, 755.3, 0.1678, 0.3051, 0.4295, 0.1976, 0.3039, 0.06146]}'
+             
+    # --- ETAPA 3: PUSH a Registro (Solo si las pruebas fueron exitosas) ---
+    - name: 📤 Push to Docker Hub
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true # ¡Ahora sí subir!
+        tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest, ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
