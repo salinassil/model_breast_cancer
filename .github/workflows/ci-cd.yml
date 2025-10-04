@@ -25,8 +25,8 @@ jobs:
       uses: docker/login-action@v3
       with:
         # Usa Secrets para mantener tus credenciales seguras
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        username: ${{ secrets.SALINASSIL }}
+        password: ${{ secrets.SILVITA22 }}
     
     - name: 🏗️ Build Docker Image
       id: docker_build
